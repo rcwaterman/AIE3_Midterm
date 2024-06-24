@@ -86,18 +86,40 @@ hf_retriever = vectorstore.as_retriever()
 2. Create a Prompt Template from the String Template
 """
 ### 1. DEFINE STRING TEMPLATE
-RAG_PROMPT_TEMPLATE = """
+RAG_PROMPT_TEMPLATE = """\
+<|start_header_id|>system<|end_header_id|>
+
+You are an assistant that exclusively answers questions based on the provided context. Any query that cannot be answered using the provided context should be politely refused, with an explanation as to why you could not answer.
+
+<|start_header_id|>user<|end_header_id|>
+User Query:
+{query}
+
+Context:
+{context}<|eot_id|>
+
+<|start_header_id|>assistant<|end_header_id|>
+
 """
 
 ### 2. CREATE PROMPT TEMPLATE
-rag_prompt = 1
+rag_prompt = PromptTemplate.from_template(RAG_PROMPT_TEMPLATE)
 
 # -- GENERATION -- #
 """
 1. Create a HuggingFaceEndpoint for the LLM
 """
 ### 1. CREATE HUGGINGFACE ENDPOINT FOR LLM
-hf_llm = 1
+hf_llm = HuggingFaceEndpoint( 
+    endpoint_url=HF_LLM_ENDPOINT,
+    max_new_tokens=512, 
+    top_k=10,
+    top_p=0.95,
+    typical_p=0.95,
+    temperature=0.01,
+    repetition_penalty=1.03,
+    huggingfacehub_api_token=HF_LLM_ENDPOINT
+)
 
 @cl.author_rename
 def rename(original_author: str):
@@ -122,7 +144,10 @@ async def start_chat():
     """
 
     ### BUILD LCEL RAG CHAIN THAT ONLY RETURNS TEXT
-    lcel_rag_chain = 1
+    lcel_rag_chain = (
+        {"context": itemgetter("query") | hf_retriever, "query": itemgetter("query")}
+        | rag_prompt | hf_llm
+    )
 
     cl.user_session.set("lcel_rag_chain", lcel_rag_chain)
 
