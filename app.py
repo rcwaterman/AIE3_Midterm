@@ -43,24 +43,15 @@ text_loader = TextLoader('./data/paul_graham_essays.txt')
 documents = text_loader.load()
 
 ### 2. CREATE TEXT SPLITTER AND SPLIT DOCUMENTS
-def embed_length(text):
-    tokens = HuggingFaceEndpoint(
-        endpoint_url=HF_EMBED_ENDPOINT,
-        huggingfacehub_api_token=HF_TOKEN
-    )
-
-    return len(tokens)
-
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=200,
-    chunk_overlap=0,
-    length_function=embed_length
+    chunk_size=500,
+    chunk_overlap=0
 )
 
-split_documents = text_splitter.split_documents
+split_documents = text_splitter.split_documents(documents)
 
 ### 3. LOAD HUGGINGFACE EMBEDDINGS
-hf_embeddings = 1
+hf_embeddings = HuggingFaceEndpointEmbeddings(model=HF_EMBED_ENDPOINT, huggingfacehub_api_token=HF_TOKEN)
 
 if os.path.exists("./data/vectorstore"):
     vectorstore = FAISS.load_local(
@@ -73,8 +64,9 @@ if os.path.exists("./data/vectorstore"):
 else:
     print("Indexing Files")
     os.makedirs("./data/vectorstore", exist_ok=True)
-    ### 4. INDEX FILES
-    ### NOTE: REMEMBER TO BATCH THE DOCUMENTS WITH MAXIMUM BATCH SIZE = 32
+    
+### 4. INDEX FILES
+### NOTE: REMEMBER TO BATCH THE DOCUMENTS WITH MAXIMUM BATCH SIZE = 32
 
 hf_retriever = vectorstore.as_retriever()
 
