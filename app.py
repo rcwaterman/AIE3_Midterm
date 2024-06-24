@@ -1,6 +1,6 @@
 import os
 import chainlit as cl
-from dotenv import load_dotenv
+from dotenv import find_dotenv, dotenv_values
 from operator import itemgetter
 from langchain_huggingface import HuggingFaceEndpoint
 from langchain_community.document_loaders import TextLoader
@@ -19,14 +19,15 @@ This function will load our environment file (.env) if it is present.
 
 NOTE: Make sure that .env is in your .gitignore file - it is by default, but please ensure it remains there.
 """
-load_dotenv()
 
 """
 We will load our environment variables here.
 """
-HF_LLM_ENDPOINT = os.environ["HF_LLM_ENDPOINT"]
-HF_EMBED_ENDPOINT = os.environ["HF_EMBED_ENDPOINT"]
-HF_TOKEN = os.environ["HF_TOKEN"]
+
+keys = list(dotenv_values(find_dotenv('.env')).items())
+HF_TOKEN = os.environ['HF_TOKEN'] = keys[0][1]
+HF_EMBED_ENDPOINT = os.environ['HF_EMBED_ENDPOINT'] = keys[1][1]
+HF_LLM_ENDPOINT = os.environ['HF_LLM_ENDPOINT'] = keys[2][1]
 
 # ---- GLOBAL DECLARATIONS ---- #
 
@@ -51,7 +52,9 @@ text_splitter = RecursiveCharacterTextSplitter(
 split_documents = text_splitter.split_documents(documents)
 
 ### 3. LOAD HUGGINGFACE EMBEDDINGS
-hf_embeddings = HuggingFaceEndpointEmbeddings(model=HF_EMBED_ENDPOINT, huggingfacehub_api_token=HF_TOKEN)
+hf_embeddings = HuggingFaceEndpointEmbeddings(model=HF_EMBED_ENDPOINT, 
+                                              task="feature-extraction", #from the class instantiation example
+                                              huggingfacehub_api_token=HF_TOKEN)
 
 if os.path.exists("./data/vectorstore"):
     vectorstore = FAISS.load_local(
@@ -64,10 +67,17 @@ if os.path.exists("./data/vectorstore"):
 else:
     print("Indexing Files")
     os.makedirs("./data/vectorstore", exist_ok=True)
-    
-### 4. INDEX FILES
-### NOTE: REMEMBER TO BATCH THE DOCUMENTS WITH MAXIMUM BATCH SIZE = 32
-
+    ### 4. INDEX FILES
+    ### NOTE: REMEMBER TO BATCH THE DOCUMENTS WITH MAXIMUM BATCH SIZE = 32
+    batch_size = 32
+    vectorstore = FAISS.from_documents(split_documents[0:batch_size], hf_embeddings) #Initialize vector store with first bacth of 32
+    for i in range(batch_size, len(split_documents), batch_size):
+        if len(split_documents) - i < batch_size: #prevent a possible index out of range error
+            vectorstore.add_documents(split_documents[i::])
+        else:
+            vectorstore.add_documents(split_documents[i:i+batch_size])
+    vectorstore.save_local("./data/vectorstore")
+        
 hf_retriever = vectorstore.as_retriever()
 
 # -- AUGMENTED -- #
@@ -76,7 +86,8 @@ hf_retriever = vectorstore.as_retriever()
 2. Create a Prompt Template from the String Template
 """
 ### 1. DEFINE STRING TEMPLATE
-RAG_PROMPT_TEMPLATE = 1
+RAG_PROMPT_TEMPLATE = """
+"""
 
 ### 2. CREATE PROMPT TEMPLATE
 rag_prompt = 1
